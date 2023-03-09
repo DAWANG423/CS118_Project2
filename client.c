@@ -218,8 +218,15 @@ int main (int argc, char *argv[])
     //       single data packet, and then tears down the connection without
     //       handling data loss.
     //       Only for demo purpose. DO NOT USE IT in your final submission
+
+    // Selective Repeat:
+    /*
+    double timers[WND_SIZE];
+    timers[0] = timer;
+    out_of_order_pkt_count = 0;
+    */
     seqNum += m;
-    int recv_ack = synackpkt.acknum; // Track the last received ack number
+    int recv_ack = synackpkt.acknum; // Track the last received in-order ack number
     int k = m; // total bytes read so far
     while (1) {
         //buildPkt(&pkts[9], 69, 69, 0, 0, 1, 0, m, buf);
@@ -234,7 +241,7 @@ int main (int argc, char *argv[])
                     printSend(&pkts[e], 0);
                     sendto(sockfd, &pkts[e], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
                     //printf("%s\n", pkts[e].payload);
-                    //timer = setTimer();
+                    // timers[e] = setTimer(); //SR
                     buildPkt(&pkts[e], seqNum, 0, 0, 0, 0, 1, m, buf);
                     seqNum += m;
                     k += m;
@@ -251,9 +258,23 @@ int main (int argc, char *argv[])
             printRecv(&ackpkt);
             if(ackpkt.acknum != recv_ack) {
                 moveWindow(pkts, 1);
+                // moveWindow(timers, 1);
                 e -= 1;
-                timer = setTimer();
+                timer = setTimer(); // remove for SR
+                recv_ack = ackpkt.acknum;
             }
+            // SR
+            /*
+            if(ackpkt.acknum == recv_ack + 1) {
+                moveWindow(timers, out_of_order_pkt_count);
+                e -= 1;
+                recv_ack = ackpkt.acknum;
+                out_of_order_pkt_count = 0;
+            }
+            else if(ackpkt.acknum > recv_ack + 1) {
+                out_of_order_pkt_count++;
+            }
+            */
             if(full && ackpkt.acknum == seqNum + 1) {
                 break;
             }
@@ -266,6 +287,17 @@ int main (int argc, char *argv[])
             }
             timer = setTimer();
         }
+        // SR
+        /*else {
+            for(int i = 0; i < e; i++) {
+                if(isTimeout(timers[i])) {
+                    printTimeout(&pkts[i]);
+                    printSend(&pkts[i], 1);
+                    sendto(sockfd, &pkts[i], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
+                    timers[i] = setTimer();
+                }
+            }
+        }*/
     }
 
     // *** End of your client implementation ***
