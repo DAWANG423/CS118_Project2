@@ -86,6 +86,14 @@ int isTimeout(double end) {
 
 // =====================================
 
+void moveWindow(struct packet pkts[WND_SIZE], int amt) {
+    int j = 0;
+    for(int i = amt; i < WND_SIZE; i++) {
+        pkts[j] = pkts[i];
+        j++;
+    }
+}
+
 int main (int argc, char *argv[])
 {
     if (argc != 5) {
@@ -200,7 +208,7 @@ int main (int argc, char *argv[])
     timer = setTimer();
     buildPkt(&pkts[0], seqNum, (synackpkt.seqnum + 1) % MAX_SEQN, 0, 0, 0, 1, m, buf);
 
-    e = 1;
+    e = 1; // index in pkts of last sent packet
 
     // =====================================
     // *** TODO: Implement the rest of reliable transfer in the client ***
@@ -210,10 +218,53 @@ int main (int argc, char *argv[])
     //       single data packet, and then tears down the connection without
     //       handling data loss.
     //       Only for demo purpose. DO NOT USE IT in your final submission
+    seqNum += m;
+    int recv_ack = synackpkt.acknum; // Track the last received ack number
+    int k = m; // total bytes read so far
     while (1) {
+        //buildPkt(&pkts[9], 69, 69, 0, 0, 1, 0, m, buf);
+        //printSend(&pkts[9], 0);
+        if(!full) {
+            for(; e < WND_SIZE; e++) {
+                s = fseek(fp, k, SEEK_SET);
+                //printf("%d \n", s);
+                m = fread(buf, 1, PAYLOAD_SIZE, fp);
+                if(m > 0) {
+                    buildPkt(&pkts[e], seqNum, 0, 0, 0, 1, 0, m, buf);
+                    printSend(&pkts[e], 0);
+                    sendto(sockfd, &pkts[e], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
+                    //printf("%s\n", pkts[e].payload);
+                    //timer = setTimer();
+                    buildPkt(&pkts[e], seqNum, 0, 0, 0, 0, 1, m, buf);
+                    seqNum += m;
+                    k += m;
+                }
+                else {
+                    full = 1;
+                    break;
+                }
+
+            }
+        }
         n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *) &servaddr, (socklen_t *) &servaddrlen);
         if (n > 0) {
-            break;
+            printRecv(&ackpkt);
+            if(ackpkt.acknum != recv_ack) {
+                moveWindow(pkts, 1);
+                e -= 1;
+                timer = setTimer();
+            }
+            if(full && ackpkt.acknum == seqNum + 1) {
+                break;
+            }
+        }
+        else if (isTimeout(timer)) {
+            printTimeout(&pkts[0]);
+            for(int i = 0; i < e; i++) {
+                printSend(&pkts[i], 1);
+                sendto(sockfd, &pkts[i], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
+            }
+            timer = setTimer();
         }
     }
 
