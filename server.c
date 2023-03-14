@@ -197,6 +197,7 @@ int main (int argc, char *argv[])
         //       without handling data loss.
         //       Only for demo purpose. DO NOT USE IT in your final submission
         struct packet recvpkt;
+        unsigned int prevPktLength = ackpkt.length;
 
         while(1) {
             n = recvfrom(sockfd, &recvpkt, PKT_SIZE, 0, (struct sockaddr *) &cliaddr, (socklen_t *) &cliaddrlen);
@@ -211,6 +212,22 @@ int main (int argc, char *argv[])
                     sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr*) &cliaddr, cliaddrlen);
 
                     break;
+                }
+
+                else if (recvpkt.seqnum == cliSeqNum) {
+                    cliSeqNum = (cliSeqNum + recvpkt.length) % MAX_SEQN;
+                    fseek(fp, prevPktLength, SEEK_CUR);
+                    fwrite(recvpkt.payload, 1, recvpkt.length, fp);
+                    buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
+                    sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr*) &cliaddr, cliaddrlen);
+                    printSend(&ackpkt, 0);
+                    prevPktLength = recvpkt.length;
+                }
+                
+                else {
+                    buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 0, 1, 0, NULL);
+                    sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr*) &cliaddr, cliaddrlen);
+                    printSend(&ackpkt, 0);
                 }
             }
         }

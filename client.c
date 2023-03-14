@@ -237,13 +237,14 @@ int main (int argc, char *argv[])
                 //printf("%d \n", s);
                 m = fread(buf, 1, PAYLOAD_SIZE, fp);
                 if(m > 0) {
-                    buildPkt(&pkts[e], seqNum, 0, 0, 0, 1, 0, m, buf);
+                    buildPkt(&pkts[e], seqNum, 0, 0, 0, 0, 0, m, buf);
                     printSend(&pkts[e], 0);
                     sendto(sockfd, &pkts[e], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
                     //printf("%s\n", pkts[e].payload);
                     // timers[e] = setTimer(); //SR
-                    buildPkt(&pkts[e], seqNum, 0, 0, 0, 0, 1, m, buf);
+                    buildPkt(&pkts[e], seqNum, 0, 0, 0, 0, 0, m, buf);
                     seqNum += m;
+                    seqNum = seqNum % MAX_SEQN;
                     k += m;
                 }
                 else {
@@ -275,7 +276,7 @@ int main (int argc, char *argv[])
                 out_of_order_pkt_count++;
             }
             */
-            if(full && ackpkt.acknum == seqNum + 1) {
+            if(full && ackpkt.acknum == seqNum) {
                 break;
             }
         }
