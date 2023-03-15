@@ -226,15 +226,9 @@ int main (int argc, char *argv[])
     out_of_order_pkt_count = 0;
     */
     seqNum += m;
-    int recv_ack = synackpkt.acknum; // Track the last received in-order ack number
-    int k = m; // total bytes read so far
     while (1) {
-        //buildPkt(&pkts[9], 69, 69, 0, 0, 1, 0, m, buf);
-        //printSend(&pkts[9], 0);
         if(!full) {
             for(; e < WND_SIZE; e++) {
-                s = fseek(fp, k, SEEK_SET);
-                //printf("%d \n", s);
                 m = fread(buf, 1, PAYLOAD_SIZE, fp);
                 if(m > 0) {
                     buildPkt(&pkts[e], seqNum, 0, 0, 0, 0, 0, m, buf);
@@ -242,10 +236,8 @@ int main (int argc, char *argv[])
                     sendto(sockfd, &pkts[e], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
                     //printf("%s\n", pkts[e].payload);
                     // timers[e] = setTimer(); //SR
-                    buildPkt(&pkts[e], seqNum, 0, 0, 0, 0, 0, m, buf);
                     seqNum += m;
                     seqNum = seqNum % MAX_SEQN;
-                    k += m;
                 }
                 else {
                     full = 1;
@@ -257,12 +249,16 @@ int main (int argc, char *argv[])
         n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *) &servaddr, (socklen_t *) &servaddrlen);
         if (n > 0) {
             printRecv(&ackpkt);
-            if(ackpkt.acknum != recv_ack) {
-                moveWindow(pkts, 1);
+            for(int i = 1; i < WND_SIZE; i++) {
+                if(ackpkt.acknum == pkts[i].seqnum) {
+                moveWindow(pkts, i);
                 // moveWindow(timers, 1);
-                e -= 1;
+                //printf("first packet in window: %d\n", pkts[0].seqnum);
+                e -= i;
                 timer = setTimer(); // remove for SR
-                recv_ack = ackpkt.acknum;
+                //recv_ack = ackpkt.acknum;
+                break;
+            }
             }
             // SR
             /*
