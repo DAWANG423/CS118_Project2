@@ -94,6 +94,14 @@ void moveWindow(struct packet pkts[WND_SIZE], int amt) {
     }
 }
 
+void moveTimers(double timers[WND_SIZE], int amt) {
+    int j = 0;
+    for(int i = amt; i < WND_SIZE; i++) {
+        timers[j] = timers[i];
+        j++;
+    }
+}
+
 int main (int argc, char *argv[])
 {
     if (argc != 5) {
@@ -220,11 +228,11 @@ int main (int argc, char *argv[])
     //       Only for demo purpose. DO NOT USE IT in your final submission
 
     // Selective Repeat:
-    /*
+    
     double timers[WND_SIZE];
     timers[0] = timer;
-    out_of_order_pkt_count = 0;
-    */
+    int out_of_order_pkt_count = 0;
+    
     seqNum += m;
     while (1) {
         if(!full) {
@@ -234,8 +242,7 @@ int main (int argc, char *argv[])
                     buildPkt(&pkts[e], seqNum, 0, 0, 0, 0, 0, m, buf);
                     printSend(&pkts[e], 0);
                     sendto(sockfd, &pkts[e], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
-                    //printf("%s\n", pkts[e].payload);
-                    // timers[e] = setTimer(); //SR
+                    timers[e] = setTimer(); //SR
                     seqNum += m;
                     seqNum = seqNum % MAX_SEQN;
                 }
@@ -249,43 +256,41 @@ int main (int argc, char *argv[])
         n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *) &servaddr, (socklen_t *) &servaddrlen);
         if (n > 0) {
             printRecv(&ackpkt);
-            for(int i = 1; i < WND_SIZE; i++) {
+            /*for(int i = 1; i < WND_SIZE; i++) {
                 if(ackpkt.acknum == pkts[i].seqnum) {
                 moveWindow(pkts, i);
-                // moveWindow(timers, 1);
+                moveWindow(timers, i);
                 //printf("first packet in window: %d\n", pkts[0].seqnum);
                 e -= i;
-                timer = setTimer(); // remove for SR
-                //recv_ack = ackpkt.acknum;
+                //timer = setTimer(); // remove for SR
                 break;
-            }
-            }
+                }
+            }*/
             // SR
-            /*
-            if(ackpkt.acknum == recv_ack + 1) {
-                moveWindow(timers, out_of_order_pkt_count);
-                e -= 1;
-                recv_ack = ackpkt.acknum;
+            if(ackpkt.acknum == pkts[1].seqnum) {
+                moveWindow(pkts, 1 + out_of_order_pkt_count);
+                moveTimers(timers, 1 + out_of_order_pkt_count);
+                e -= (1 + out_of_order_pkt_count);
                 out_of_order_pkt_count = 0;
             }
-            else if(ackpkt.acknum > recv_ack + 1) {
+            else if(ackpkt.acknum > pkts[1].seqnum) {
                 out_of_order_pkt_count++;
             }
-            */
+            
             if(full && ackpkt.acknum == seqNum) {
                 break;
             }
         }
-        else if (isTimeout(timer)) {
+        /*else if (isTimeout(timer)) {
             printTimeout(&pkts[0]);
             for(int i = 0; i < e; i++) {
                 printSend(&pkts[i], 1);
                 sendto(sockfd, &pkts[i], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
             }
             timer = setTimer();
-        }
+        }*/
         // SR
-        /*else {
+        else {
             for(int i = 0; i < e; i++) {
                 if(isTimeout(timers[i])) {
                     printTimeout(&pkts[i]);
@@ -294,7 +299,7 @@ int main (int argc, char *argv[])
                     timers[i] = setTimer();
                 }
             }
-        }*/
+        }
     }
 
     // *** End of your client implementation ***
