@@ -86,18 +86,50 @@ int isTimeout(double end) {
 
 // =====================================
 
-void moveWindow(struct packet pkts[WND_SIZE], int amt) {
+/*void moveWindow(struct packet pkts[WND_SIZE], int amt) {
     int j = 0;
     for(int i = amt; i < WND_SIZE; i++) {
         pkts[j] = pkts[i];
         j++;
     }
+}*/
+int moveWindow(struct packet pkts[WND_SIZE], int acked[WND_SIZE]) { // moves window to the first unacked packet
+    int i = 1;
+    for(; i < WND_SIZE; i++) {
+        if(acked[i] == 0) {
+            break;
+        }
+    }
+    int j = 0;
+    for(int k = i; k < WND_SIZE; k++) {
+        pkts[j] = pkts[k];
+        j++;
+    }
+    return i;
 }
 
-void moveTimers(double timers[WND_SIZE], int amt) {
-    int j = 0;
+void moveTimers(double timers[WND_SIZE], int acked[WND_SIZE]/*int amt*/) {
+    /*int j = 0;
     for(int i = amt; i < WND_SIZE; i++) {
         timers[j] = timers[i];
+        j++;
+    }*/
+    int i = 0;
+    for(; i < WND_SIZE; i++) {
+        if(acked[i] == 0) {
+            break;
+        }
+    }
+    int j = 0;
+    for(; i < WND_SIZE; i++) {
+        timers[j] = timers[i];
+        j++;
+    }
+}
+void moveAcked(int acked[WND_SIZE], int amt) {
+    int j = 0;
+    for(int i = amt; i < WND_SIZE; i++) {
+        acked[j] = acked[i];
         j++;
     }
 }
@@ -231,7 +263,8 @@ int main (int argc, char *argv[])
     
     double timers[WND_SIZE];
     timers[0] = timer;
-    int out_of_order_pkt_count = 0;
+    int outOfOrderPktCount = 0;
+    int acked[WND_SIZE] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     
     seqNum += m;
     while (1) {
@@ -268,13 +301,32 @@ int main (int argc, char *argv[])
             }*/
             // SR
             if(ackpkt.acknum == pkts[1].seqnum) {
-                moveWindow(pkts, 1 + out_of_order_pkt_count);
-                moveTimers(timers, 1 + out_of_order_pkt_count);
-                e -= (1 + out_of_order_pkt_count);
-                out_of_order_pkt_count = 0;
+                acked[0] = 1;
+                printf("window: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
+                    pkts[0].seqnum, pkts[1].seqnum, pkts[2].seqnum, pkts[3].seqnum, pkts[4].seqnum, pkts[5].seqnum, pkts[6].seqnum, pkts[7].seqnum, pkts[8].seqnum, pkts[9].seqnum);
+                printf("acked: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
+                    acked[0], acked[1], acked[2], acked[3], acked[4], acked[5], acked[6], acked[7], acked[8], acked[9]);
+                int moved = moveWindow(pkts, acked);
+                moveAcked(acked, moved);
+                printf("moved window: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
+                    pkts[0].seqnum, pkts[1].seqnum, pkts[2].seqnum, pkts[3].seqnum, pkts[4].seqnum, pkts[5].seqnum, pkts[6].seqnum, pkts[7].seqnum, pkts[8].seqnum, pkts[9].seqnum);
+                printf("moved acked: %d, %d, %d, %d, %d, %d, %d, %d, %d, %d\n", 
+                    acked[0], acked[1], acked[2], acked[3], acked[4], acked[5], acked[6], acked[7], acked[8], acked[9]);
+                moveTimers(timers, acked);
+                e -= moved;
+                //outOfOrderPktCount = 0;
             }
             else if(ackpkt.acknum > pkts[1].seqnum) {
-                out_of_order_pkt_count++;
+                //outOfOrderPktCount++;
+                int i = 2;
+                for(;i < WND_SIZE; i++) {
+                    if(pkts[i].seqnum == ackpkt.acknum) {
+                        break;
+                    }
+                }
+                //printf("received out of order packet: %d\n", pkts[i-1].seqnum);
+                timers[i-1] = 1000000000000000;
+                acked[i-1] = 1;
             }
             
             if(full && ackpkt.acknum == seqNum) {
@@ -293,6 +345,7 @@ int main (int argc, char *argv[])
         else {
             for(int i = 0; i < e; i++) {
                 if(isTimeout(timers[i])) {
+                    //printf("first packet in window: %d, timeout packet: %d\n", pkts[0].seqnum, pkts[i].seqnum);
                     printTimeout(&pkts[i]);
                     printSend(&pkts[i], 1);
                     sendto(sockfd, &pkts[i], PKT_SIZE, 0, (struct sockaddr*) &servaddr, servaddrlen);
